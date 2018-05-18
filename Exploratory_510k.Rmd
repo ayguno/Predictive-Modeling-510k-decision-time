@@ -13,25 +13,163 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(results = "markup", fig.align = "center",
+                      fig.height= 8, fig.width= 8,message=FALSE,warning=FALSE)
 ```
 
-## R Markdown
+#Introduction
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Loading and inspecting data
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+# Download the data from:  #https://www.fda.gov/MedicalDevices/ProductsandMedicalProcedures/DeviceApprovalsandClearances/#510kClearances/ucm089428.htm
+wdir <- getwd()
 
-```{r cars}
-summary(cars)
+# Data from 96
+current_96 <- "http://www.accessdata.fda.gov/premarket/ftparea/pmn96cur.zip"
+download.file(url = current_96,destfile = paste0(wdir,"/pmn96cur.zip"))
+unzip("pmn96cur.zip")
+unlink("pmn96cur.zip")
+
+# Data between 91-95
+data91_95 <- "http://www.accessdata.fda.gov/premarket/ftparea/pmn9195.zip"
+download.file(url = data91_95,destfile = paste0(wdir,"/pmn9195.zip"))
+unzip("pmn9195.zip")
+unlink("pmn9195.zip")
+
+
+# Read the data
+data_96_current <- read.csv("pmn96cur.txt", sep = "|", stringsAsFactors = FALSE)
+data91_95 <- read.csv("pmn9195.txt", sep = "|", stringsAsFactors = FALSE)
+
+# Same columns
+identical(names(data_96_current),names(data91_95))
+
+# rBind the data
+current <- rbind(data_96_current,data91_95)
+library(lubridate)
+current$DATERECEIVED <- mdy(current$DATERECEIVED)
+current$DECISIONDATE <- mdy(current$DECISIONDATE)
+
+summary(current)
+
+current$DECISIONTIME <- as.numeric(as.character(current$DECISIONDATE - current$DATERECEIVED))
+plot(current$DATERECEIVED,current$DECISIONTIME, pch = 19, cex = 0.05, col = "red" )
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+current$YEAR <- year(current$DATERECEIVED)
+plot(table(current$YEAR))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Let's focus on data between 1997 - 2017. We can use cases from 2018 to test the models later on.
+
+```{r, fig.height=20}
+library(lubridate)
+current <- current[(current$YEAR >= 1997) & (current$YEAR <= 2017) ,]
+
+summary(current)
+
+# Remove one missing entry
+current[is.na(current$YEAR),]
+current <- current[!is.na(current$YEAR),]
+
+current$WEEKDAY <- weekdays(current$DATERECEIVED)
+current$DAYSOFYEAR <- yday(current$DATERECEIVED)
+current$DAYSOFMONTH <- mday(current$DATERECEIVED)
+current$DAYSOFWEEK <- wday(current$DATERECEIVED)
+
+summary(current)
+
+library(ggplot2)
+
+ggplot(current, aes(x = DAYSOFYEAR , y = DECISIONTIME, col = factor(DECISION)))+
+        geom_point(size = 0.5, alpha = 0.5)+
+        facet_grid(YEAR ~ .)+
+        scale_fill_discrete()
+```
+
+There seems not a relationship between decision date and time of the year a submission is received. As we expected, de novo decisions have different timielines:
+
+```{r}
+ggplot(current,aes(x = DECISION, y = DECISIONTIME, fill = DECISION))+
+        geom_boxplot()+
+        scale_color_discrete()
+```
+
+```{r}
+table(current$DECISION)
+```
+
+We will not use de novo cases in our model since they are not originally intended as 510k submissions but they are converted to 510k.
+
+```{r}
+current <- current[current$DECISION != "DENG",]
+
+ggplot(current, aes(x = WEEKDAY, y = DECISIONTIME, fill = WEEKDAY))+
+        geom_boxplot()
+```
+
+WEEKDAY does not matter. 
+
+```{r}
+table(current$EXPEDITEDREVIEW)
+ggplot(current, aes(x = EXPEDITEDREVIEW, y = DECISIONTIME))+
+        geom_boxplot()
+```
+
+It does not seem to matter either.  
+
+```{r}
+# There are 2538 product codes in this data set
+length(unique(current$PRODUCTCODE))
+sum(is.na(current$PRODUCTCODE))
+
+# What is the median decision time for different product codes?
+library(dplyr)
+
+pdec <- current %>% group_by(PRODUCTCODE) %>% summarise(med.dec.time = median(DECISIONTIME), count = n()) %>% arrange(desc(med.dec.time))
+
+
+head(pdec)
+tail(pdec)
+```
+```{r}
+hist(log10(pdec$count), breaks = 100, col = "navy")
+```
+
+Most product codes are rare, but they may contain important information about the decision time. We would like to keep this feature and eventually convert to dummy variables. However, the caveat is that when we split the data set into training and test sets, then about 700 product codes will only appear in one of the sets. 
+
+```{r}
+# How about being ane experienced applicant?
+length(unique(current$APPLICANT))
+
+# We notice many applicants have more than one clearances to date, let's see if the prior experience shortens the decision time?
+
+current <- current[order(current$DATERECEIVED),]
+
+for(i in 1:nrow(current)){
+ current$APPLICANT_PRIOR_CLEARANCE_TO_DATE[i] <- sum(current$APPLICANT[1:i] == current$APPLICANT[i])     
+        
+}
+```
+
+```{r}
+hist(current$APPLICANT_PRIOR_CLEARANCE_TO_DATE, col = "navy")
+```
+
+
+```{r}
+library(ggplot2)
+
+ggplot(current,aes(x = APPLICANT_PRIOR_CLEARANCE_TO_DATE, y = DECISIONTIME))+
+        geom_point(size = 0.2, col = "navy", alpha = 0.08)+
+        geom_smooth(method = "lm")
+```
+
+
+```{r}
+# save the current version of the dataset to continue working later
+saveRDS(current,"current.rds")
+```
+
