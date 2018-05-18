@@ -227,16 +227,198 @@ Let's look at that  outlier data points with over 3000 days of decision time:
 current[which(current$DECISIONTIME > 3000),]
 ```
 
-These entries might have something special we could not understand. Almost 9 years of decision time is not very realistic. In order to reduce the chance of anayzing erronous data, we will remove these 3 entries which appear to relate same type of product.
+These entries might have something special we could not understand. Almost 9 years of decision time is not very realistic. In order to reduce the chance of analyzing erronous data, we will remove these 3 entries which appear to relate same type of product.
 
 ```{r}
+current <- current[which(current$DECISIONTIME <3000),]
+```
+
+
+```{r}
+# Order the factor levels of COUNTRY_CODE based on median decision time of each group
+fac <- with(current, reorder(COUNTRY_CODE, DECISIONTIME, median, order = TRUE))
+current$COUNTRY_CODE <- factor(current$COUNTRY_CODE, levels = levels(fac))
+
 ggplot(current, aes(x = factor(COUNTRY_CODE), y = DECISIONTIME))+
         geom_boxplot()+
         coord_flip()
 ```
+Does not look significantly different, but worth to keep in the list of features.
+
+```{r}
+# Fill the empty states entries with 'NON_US'
+current$STATE[which(current$STATE == "")] <- "NON_US"
+table(current$STATE)
+```
+
+```{r}
+fac <- with(current, reorder(STATE,DECISIONTIME,median,order = TRUE))
+current$STATE <- factor(current$STATE, levels = levels(fac))
+
+ggplot(current, aes(x = STATE, y = DECISIONTIME))+
+        geom_boxplot()+
+        coord_flip()
+```
+
+Again, states don't look too different, but we will still keep for binary features.
+
+```{r}
+# Remove zipcode features
+current <-  dplyr::select(current,- ZIP, POSTAL_CODE )
+```
+
+```{r}
+current %>% group_by(DECISION) %>% summarise(median_dectime = median(DECISIONTIME),
+                                             count = n())
+
+```
+
+We don't need to keep this one since since the exact decision code won't be known before any submission.
+
+```{r}
+current <- dplyr::select(current, - DECISION)
+```
+
+```{r}
+table(current$REVIEWADVISECOMM)
+fac <- with(current, reorder(REVIEWADVISECOMM,DECISIONTIME,median,order = TRUE))
+current$REVIEWADVISECOMM <- factor(current$REVIEWADVISECOMM, levels = levels(fac))
+
+ggplot(current, aes(x = REVIEWADVISECOMM, y = DECISIONTIME))+
+        geom_boxplot()
+       
+```
+
+Let's keep this feature.
+
+```{r}
+ggplot(current, aes(x = STATEORSUMM, y = DECISIONTIME))+
+        geom_boxplot()
+table(current$STATEORSUMM)       
+```
+
+This does not have much value, but keep it for now until we think a strategy to retrieve these statement/summary text.
+
+```{r}
+identical(as.character(current$REVIEWADVISECOMM), current$CLASSADVISECOMM)
+```
+```{r}
+table(current$CLASSADVISECOMM)
+fac <- with(current, reorder(CLASSADVISECOMM,DECISIONTIME,median,order = TRUE))
+current$CLASSADVISECOMM <- factor(current$CLASSADVISECOMM, levels = levels(fac))
+
+ggplot(current, aes(x = CLASSADVISECOMM, y = DECISIONTIME))+
+        geom_boxplot()
+```
+
+Keep for now.
+
+```{r}
+# Remove this feature
+unique(current$SSPINDICATOR)
+current <- dplyr::select(current,-SSPINDICATOR)
+```
+
+```{r}
+table(current$TYPE)
+fac <- with(current, reorder(TYPE,DECISIONTIME,median,order = TRUE))
+current$TYPE <- factor(current$TYPE, levels = levels(fac))
+
+ggplot(current, aes(x = TYPE, y = DECISIONTIME))+
+        geom_boxplot()
+```
+As we expected, special 510k's have shorter review time. This is a good feature to keep.
+
+```{r}
+# Remove this one
+current <- dplyr::select(current, - THIRDPARTY)
+```
+
+```{r}
+# Keep this one
+table(current$EXPEDITEDREVIEW)
+ggplot(current, aes(x = EXPEDITEDREVIEW, y = DECISIONTIME))+
+        geom_boxplot()
+
+current$EXPEDITEDREVIEW[current$EXPEDITEDREVIEW == ""] <- "N"
+```
+
+We will keep Device names for tokenization and feature extraction using NLP.
+
+This is the version of the data set we will keep for some plotting later.
 
 ```{r}
 # save the current version of the dataset to continue working later
 saveRDS(current,"current.rds")
+```
+
+# Processing the data set for predictive modeling
+
+Here we will process the features we currently have, to create a new data set where we will only have:
+
+- Target feature (DECISIONTIME)
+- Features to be vectorized into dummy variables:
+       - attach the feature name to value , then combine them into a single         feature for a given data entry. Thye will become unique features and will be                binarized using tokenization later.
+- Features to be tokenized as n_grams (DEVICENAME)
+- Two continuous features (APPLICANT anf DEVICE name prior clearance to date)
+
+We will start by removing all other features we won't use for medeling, expect the KNUMBER, which we will keep to explore decision summary mining later.
+
+```{r}
+processing <- dplyr::select(current, KNUMBER,DECISIONTIME,STATE,COUNTRY_CODE,
+                            REVIEWADVISECOMM,PRODUCTCODE,STATEORSUMM,
+                            CLASSADVISECOMM,TYPE,EXPEDITEDREVIEW,DEVICENAME,
+                            APPLICANT_PRIOR_CLEARANCE_TO_DATE,
+                            DEVICENAME_PRIOR_CLEARANCE_TO_DATE)
+
+# Save the current version of the processing 
+saveRDS(processing,"processing.rds")
+```
+
+```{r}
+###################################################
+# Write a function to process the data as we need:
+###################################################
+
+binary_processer <- function(processing){
+
+require(dplyr)
+
+temp <- processing
+
+binary_features <- c("STATE","COUNTRY_CODE",
+                            "REVIEWADVISECOMM","PRODUCTCODE","STATEORSUMM",
+                            "CLASSADVISECOMM","TYPE","EXPEDITEDREVIEW")
+# Attach the binary feature names to values, remove any "_" 
+for (i in 1:length(binary_features)){
+        feature_index <- which(names(temp) == binary_features[i])
+        temp[,feature_index] <-  sapply(temp[,feature_index], function(x){
+                return(gsub(pattern = "_",replacement = "",x =paste0(binary_features[i],x)))
+        })
+}
+
+# For each data point, Combine binary features into a single string feature using a 
+# single white space for binary vectorization/tokenization later
+
+temp <- within(temp, binarized_features <- tolower(paste(STATE,COUNTRY_CODE,
+                            REVIEWADVISECOMM,PRODUCTCODE,STATEORSUMM,
+                            CLASSADVISECOMM,TYPE,EXPEDITEDREVIEW, sep = " ")))
+# Remove the combined features
+temp <- dplyr::select(temp,-c(STATE,COUNTRY_CODE,
+                            REVIEWADVISECOMM,PRODUCTCODE,STATEORSUMM,
+                            CLASSADVISECOMM,TYPE,EXPEDITEDREVIEW))
+
+return(temp)
+
+}
+
+```
+
+```{r}
+# Process the data set using binary processer and save rds and csv versions
+
+processing <- binary_processer(processing)
+saveRDS(processing,"processing.rds")
+write.csv(processing,file = "processing.csv", row.names = FALSE)
 ```
 
