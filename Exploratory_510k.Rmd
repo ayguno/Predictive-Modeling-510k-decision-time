@@ -167,6 +167,73 @@ ggplot(current,aes(x = APPLICANT_PRIOR_CLEARANCE_TO_DATE, y = DECISIONTIME))+
         geom_smooth(method = "lm")
 ```
 
+It looks like there is some decreasing trend as we expected.
+
+```{r}
+library(dplyr)
+results <- current %>% group_by(APPLICANT_PRIOR_CLEARANCE_TO_DATE) %>% summarise(median_decision_time = median(DECISIONTIME)) 
+
+ggplot(current, aes(x = APPLICANT_PRIOR_CLEARANCE_TO_DATE, y = log10(DECISIONTIME)))+
+        geom_point(col = "blue", alpha = 0.2, size = 0.02)
+```
+
+It was misleading because the skew in the data, it looks like noise instead.
+
+How about folow up instances of the same device, does it make any difference?
+
+```{r}
+# Most devices only come once, about 5000 devices have multiple clearances
+length(unique(current$DEVICENAME))
+
+for(i in 1:nrow(current)){
+ current$DEVICENAME_PRIOR_CLEARANCE_TO_DATE[i] <- sum(current$DEVICENAME[1:i] == current$DEVICENAME[i])     
+        
+}
+```
+
+This one also looks noise:
+
+```{r}
+ggplot(current,aes(x = DEVICENAME_PRIOR_CLEARANCE_TO_DATE, y = log10(DECISIONTIME)))+
+        geom_point(col = "navy", alpha = 0.3, size = 0.5)
+```
+
+We don't expect some features would be useful let's remove them:
+
+```{r}
+library(dplyr)
+current <- dplyr::select(current, -APPLICANT, - CONTACT, - STREET1,
+                         - STREET2,- CITY)
+```
+
+```{r}
+table(current$STATE)
+sum(is.na(current$STATE))
+sum(current$STATE == "")
+```
+```{r}
+table(current$COUNTRY_CODE)
+```
+
+```{r}
+summary(lm(DECISIONTIME ~ factor(COUNTRY_CODE), data = current))
+par(mfrow = c(2,2))
+plot(lm(DECISIONTIME ~ factor(COUNTRY_CODE), data = current))
+```
+
+Let's look at that  outlier data points with over 3000 days of decision time:
+
+```{r}
+current[which(current$DECISIONTIME > 3000),]
+```
+
+These entries might have something special we could not understand. Almost 9 years of decision time is not very realistic. In order to reduce the chance of anayzing erronous data, we will remove these 3 entries which appear to relate same type of product.
+
+```{r}
+ggplot(current, aes(x = factor(COUNTRY_CODE), y = DECISIONTIME))+
+        geom_boxplot()+
+        coord_flip()
+```
 
 ```{r}
 # save the current version of the dataset to continue working later
