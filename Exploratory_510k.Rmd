@@ -429,6 +429,12 @@ write.csv(processing,file = "processing.csv", row.names = FALSE)
 
 pdfmain <- "https://www.accessdata.fda.gov/cdrh_docs/pdf/"
 
+
+#########################################################################
+# PDFs as images : mostly older PDFs that can not be extracted directly
+#########################################################################
+
+
 # For example:
 K_number <- "K970011"
 
@@ -467,11 +473,50 @@ cat("Completed extracting image:",i, "\n")
 txt <- paste0(txt,sep = " ", collapse = "~")
 unlink(images)
 # This way we can extract useful text from images iteratively
-
+# Retain only alphanumerical characters and whitespace, to reduce storage burden
+txt <- gsub("[^A-Za-z0-9 ]","",txt)
 # Retrieves very useful information with text recognition:
 cat(txt)
 # Once we are done with a file we can delete them using unlink()
 
+# Perhaps we can also perform a spellcheck using hunspell package at this point
+library(hunspell)
+bad_words <- hunspell(txt)
+bad_words[[1]]
+
+suggestions <- hunspell_suggest(bad_words[1][[1]])
+
+# Get the first suggestion for each bad word
+suggestions <- sapply(suggestions, function(x){
+        return(x[1])
+})
+
+conversion_table <- data.frame(bad_words = bad_words[1][[1]],
+                               suggestions = suggestions, stringsAsFactors = FALSE)
+
+# Note that we still have errors, but it helps for certain words
+head(conversion_table,20)
+
+# Don't keep NAs
+conversion_table <- conversion_table[complete.cases(conversion_table),]
+
+txt1 = txt
+# Last step is to replace all bad words with the selected ones
+for (replacing in 1:nrow(conversion_table)){
+         txt1 <- gsub(pattern = conversion_table$bad_words[replacing],
+             replacement = conversion_table$suggestions[replacing],
+             x = txt1)
+         
+}
+
+
+
+txt1 <- tolower(txt1)
+
+##################################################
+# Directly extractable PDFs : mostly newer PDFs
+##################################################
+        
 # Another 510k Summary example, which is searchable
 K_number <- "K173935"
 
@@ -491,7 +536,7 @@ pdf_510k <- paste(pdf_text(pdfurl), sep = " ", collapse = "~")
 Therefore, we conclude that:
 
  - For the devices where summary statement is available, this can be reached online.
- - Only certain (perhaps more recent) pdfs are searchable.
+ - Only certain (perhaps more recent) pdfs are searchable. Others require using text recognition
  - The base url might differ based on the year of the 510k
  
  Based on these observations, we will devise a strategy to programmatically parse these text features and use in NLP.
@@ -502,7 +547,9 @@ Our strategy should be parsing the text into a single string for each 510k, and 
 
 This data will be very hard to store in the memory, therefore, we will continuously write into hard drive as we parse the data.
 
-Since we don't know which available PDF files will be readable
+Since we don't know which available PDF files will be readable we will first attempt reading directly from the source, if this fails, then we will start downloading the pdfs as highresolution pngs, perform text recognition and read them afterwards. 
+
+We should attempt to remove all special characters and retain only alphanumeric characters in the text before storing them in order to reduce the storage burden.
 
 ```{r}
 
