@@ -422,3 +422,53 @@ saveRDS(processing,"processing.rds")
 write.csv(processing,file = "processing.csv", row.names = FALSE)
 ```
 
+# Exploring strategies to obtain text features from publicly available summary/statement data
+
+```{r}
+# For the entries where STATAMENTORSUMM == "Summary"" The main pdf directory seems to be at:
+
+pdfmain <- "https://www.accessdata.fda.gov/cdrh_docs/pdf/"
+
+# For example:
+K_number <- "K970011"
+
+pdfurl <- paste0(pdfmain,K_number,".pdf") 
+
+require(pdftools)
+
+# Example to see the pdf_reading function works
+txt <- pdf_text("https://arxiv.org/pdf/1406.4806.pdf")
+
+# Note that indeed this function can access to 8 pages of the document, but since
+# PDF was not saved in a text searchable format, it can not read the content
+pdf_510k <- pdf_text(pdfurl)
+pdf_510k
+
+
+# Another 510k Summary example, which is searchable
+K_number <- "K173935"
+
+# Note that for 2017, the mainurl is now different
+pdfmain <- "https://www.accessdata.fda.gov/cdrh_docs/pdf17/"
+
+pdfurl <- paste0(pdfmain,K_number,".pdf") 
+# Note that wrapping the pdf_url into paste and collapse ~ combines all the pages 
+# of the pdf text into a single character string object:
+pdf_510k <- paste(pdf_text(pdfurl), sep = " ", collapse = "~")
+# head(pdf_510k)
+
+# Note that in this case parsing is sucessfull and it is very fast. 
+
+```
+
+Therefore, we conclude that:
+
+ - For the devices where summary statement is available, this can be reached online.
+ - Only certain (perhaps more recent) pdfs are searchable.
+ - The base url might differ based on the year of the 510k
+ 
+ Based on these observations, we will devise a strategy to programmatically parse these text features and use in NLP.
+ 
+# PDF web scraping for text feature extraction
+
+
