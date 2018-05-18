@@ -444,6 +444,33 @@ txt <- pdf_text("https://arxiv.org/pdf/1406.4806.pdf")
 pdf_510k <- pdf_text(pdfurl)
 pdf_510k
 
+# The pdf is an image object, for this cases we can try to use tesseract
+# package for optical text recognition
+
+require(tesseract)
+txt <- ocr(image = pdfurl)
+
+
+# tesserract package can not use pdfs directly, so we need to convert them
+# to images beforehand
+
+# This step cpnverts each pdf page into a png file and stores created image file names
+# Note that setting dpi (resolution) to a good value is critical to extract useful
+# information by using text recognition
+images <- pdf_convert(pdf = pdfurl, format = "png", dpi = 400)
+
+txt <- NULL
+for(i in 1:length(images)){
+txt[i] <- ocr(image = images[i])
+cat("Completed extracting image:",i, "\n")
+}
+txt <- paste0(txt,sep = " ", collapse = "~")
+unlink(images)
+# This way we can extract useful text from images iteratively
+
+# Retrieves very useful information with text recognition:
+cat(txt)
+# Once we are done with a file we can delete them using unlink()
 
 # Another 510k Summary example, which is searchable
 K_number <- "K173935"
@@ -471,4 +498,13 @@ Therefore, we conclude that:
  
 # PDF web scraping for text feature extraction
 
+Our strategy should be parsing the text into a single string for each 510k, and eventually storing in a 2 column data frame, first column is K_number to link the data later on, the secon column is the text. 
+
+This data will be very hard to store in the memory, therefore, we will continuously write into hard drive as we parse the data.
+
+Since we don't know which available PDF files will be readable
+
+```{r}
+
+```
 
