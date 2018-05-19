@@ -593,16 +593,23 @@ current <- readRDS("current.rds")
 ##########################################
 # Parsing files published 2001 and later
 ##########################################
-
+require(hunspell)
 require(pdftools)
 require(stringr)
+require(tesseract)
 
 current <- current[order(current$YEAR, decreasing = TRUE),]
 
+# Keep only documents with potentially available summary statements
 current_summary <- current[current$STATEORSUMM == "Summary",]
+# Remove documents from 2000, since we learned they are not available
+yindx <- substr(as.character(current_summary$KNUMBER),2,3)
+remove2000 <- which(yindx != "00")
+current_summary <- current_summary[remove2000,]
+
 
 # Write the first document to start the file
-K_number <- current$KNUMBER[1]
+K_number <- current_summary$KNUMBER[1]
 
 # Note that for 2017, the mainurl is now different
 pdfmain <- "https://www.accessdata.fda.gov/cdrh_docs/pdf17/"
@@ -627,31 +634,97 @@ write.table(txt_frame, "Ksummary_text.csv", sep = ",", col.names = T, row.names 
 # Enter main scraping loop in which we will scrape other documents
 for (i in 2:nrow(current_summary) ){
         
-K_number <- current$KNUMBER[i]        
-year <- current_summary$YEAR[i]        
- 
-if(year > 2000){
-       yindx <- substr(as.character(year),3,4)         
-       pdfurl <- paste0("https://www.accessdata.fda.gov/cdrh_docs/pdf",
-                        yindx,"/",K_number,".pdf")
-       is_this_error <- try(txt <- paste(pdf_text(pdfurl), sep = " ", collapse = "~"))
-       close(pdfurl)
-       # Retain alphanumeric letters
-       txt <- tolower(gsub("[^A-Za-z0-9 ]","",is_this_error))
-       # Remove the extra white space
-       txt <- gsub("\\s+", " ", str_trim(txt))
-       count <-str_count(txt,tolower(K_number))
+K_number <- current_summary$KNUMBER[i]        
+yindx <- substr(as.character(K_number),2,3)
+
+if (yindx >17 ) 
+        { yindx <- ""
+}else if (yindx < 10)
+        { yindx <- substr(as.character(yindx),2,2)
+}
+
+# First try to read directly
+pdfurl <- paste0("https://www.accessdata.fda.gov/cdrh_docs/pdf",
+                  yindx,"/",K_number,".pdf")
+is_this_error <- try(txt <- paste(pdf_text(pdfurl), sep = " ", collapse = "~"))
+closeAllConnections()
+# Retain alphanumeric letters
+txt <- tolower(gsub("[^A-Za-z0-9 ]","",is_this_error))
+# Remove the extra white space
+txt <- gsub("\\s+", " ", str_trim(txt))
+count <-str_count(txt,tolower(K_number))
+
+# if count is successful store the text data
+if (count > 0){
        txt_frame <- data.frame(KNUMBER = K_number, txt = txt, 
                                 Kcount = count, stringsAsFactors = F)
-                       
-}               
+# if file is not accessible don't record the data       
+} else if ((txt == "error in openconnectioncon rb cannot open connection") & count == 0){
+       txt_frame = NULL
+       
+# if the file seem to be accesible but could't read the pdf, the file could be image
+# try to recover data using text recognition       
+} else {
+        try(images <- pdf_convert(pdf = pdfurl, format = "png", dpi = 400))
+        closeAllConnections()
+        txt <- NULL
+        for(j in 1:length(images)){
+        txt[j] <- ocr(image = images[j])
+        cat("Completed extracting image:",j, "\n")
+        }
+        txt <- paste0(txt,sep = " ", collapse = "~")
+        unlink(images)
+        txt <- gsub("[^A-Za-z0-9 ]","",txt)
+        # Perform a spellcheck using hunspell package at this point
+        cat("Performing a spellcheck...\n")
+        bad_words <- hunspell(txt)
+        bad_words[[1]]
+        suggestions <- hunspell_suggest(bad_words[1][[1]])
+        # Get the first suggestion for each bad word
+        suggestions <- sapply(suggestions, function(x){
+        return(x[1])})
+        if(length(suggestions) > 0){
+               conversion_table <- data.frame(bad_words = bad_words[1][[1]],
+                               suggestions = suggestions, stringsAsFactors = FALSE)
+                # Don't keep NAs
+                conversion_table <- conversion_table[complete.cases(conversion_table),]
+                if (nrow(conversion_table) >0){
+                        # Last step is to replace all bad words with the selected ones
+                        for (replacing in 1:nrow(conversion_table)){
+                                txt <- gsub(pattern = conversion_table$bad_words[replacing],
+                                replacement = conversion_table$suggestions[replacing],
+                                        x = txt)}
+                }
+                 
+        } 
+        cat("...Completed spellcheck.\n")
+        # Remove the extra white space
+        txt <- gsub("\\s+", " ", str_trim(txt))
+        count <-str_count(txt,tolower(K_number))
         
+        if(count > 0 ){
+                txt_frame <- data.frame(KNUMBER = K_number, txt = txt, 
+                                        Kcount = count, stringsAsFactors = F)
+        }else{
+                txt_frame <- NULL 
+        }
+        
+        
+}
 
-# Continue writing into the same file by appending into it 
-write.table(txt_frame, "Ksummary_text.csv", sep = ",", append = T, 
+
+if(!is.null(txt_frame)){
+  # Continue writing into the same file by appending into it 
+        write.table(txt_frame, "Ksummary_text.csv", sep = ",", append = T, 
              col.names = F, row.names = F)    
 
-cat("Completed parsing document:", K_number, "\n")
+        cat("Completed parsing document:", K_number, "\n")      
+        
+}else{
+        cat("All attempts failed parsing document:", K_number, "\n") 
+        cat("Skipping document:", K_number, "\n") 
+}
+
 cat(strrep("*", 40),"\n")
 
 }
