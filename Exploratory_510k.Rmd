@@ -509,8 +509,6 @@ for (replacing in 1:nrow(conversion_table)){
          
 }
 
-
-
 txt1 <- tolower(txt1)
 
 ##################################################
@@ -543,15 +541,120 @@ Therefore, we conclude that:
  
 # PDF web scraping for text feature extraction
 
-Our strategy should be parsing the text into a single string for each 510k, and eventually storing in a 2 column data frame, first column is K_number to link the data later on, the secon column is the text. 
+Our strategy should be parsing the text into a single string for each 510k, and eventually storing in a 3 column data frame, first column is K_number to link the data later on, the second column is the text. Third column counts if and hpw many times the Knumber is found in the scraped text, as a confidence measure.  
 
-This data will be very hard to store in the memory, therefore, we will continuously write into hard drive as we parse the data.
+- This data will be very hard to store in the memory, therefore, we will continuously write into hard drive as we parse the data.
 
-Since we don't know which available PDF files will be readable we will first attempt reading directly from the source, if this fails, then we will start downloading the pdfs as highresolution pngs, perform text recognition and read them afterwards. 
+- Since we don't know which available PDF files will be readable, we will first attempt reading directly from the source, if this fails, then we will then start downloading the pdfs as high resolution png images, perform text recognition, and read and process them afterwards. 
 
-We should attempt to remove all special characters and retain only alphanumeric characters in the text before storing them in order to reduce the storage burden.
+- We should attempt to remove all special characters and retain only alphanumeric characters in lowercase letters in the text before storing them, in order to reduce the storage burden.
+
+- In this script, we need to perform error handling since there may be broken urls that just return error messages. We will use tryCatch() or try() to wrap certain queries.
 
 ```{r}
+current <- readRDS("current.rds")
+
+# Understanding base filepaths for pdfs
+
+# Some examples:
+# 1997
+# https://www.accessdata.fda.gov/cdrh_docs/pdf/K974889.pdf
+
+# 1998
+# https://www.accessdata.fda.gov/cdrh_docs/pdf/K984616.pdf
+
+# 1999
+# https://www.accessdata.fda.gov/cdrh_docs/pdf/K974889.pdf
+
+# 2000
+# It looks like no data is available for devices cleared in 2000
+
+# 2001
+# https://www.accessdata.fda.gov/cdrh_docs/pdf/K014294.pdf
+
+# 2002
+# https://www.accessdata.fda.gov/cdrh_docs/pdf2/K024360.pdf
+
+# 2003
+# https://www.accessdata.fda.gov/cdrh_docs/pdf3/K034059.pdf
+
+# 2009
+# https://www.accessdata.fda.gov/cdrh_docs/pdf9/K094050.pdf
+
+# 2010
+# https://www.accessdata.fda.gov/cdrh_docs/pdf10/K103832.pdf
+
+# 2017
+# https://www.accessdata.fda.gov/cdrh_docs/pdf17/K173958.pdf
+
+```
+
+```{r}
+##########################################
+# Parsing files published 2001 and later
+##########################################
+
+require(pdftools)
+require(stringr)
+
+current <- current[order(current$YEAR, decreasing = TRUE),]
+
+current_summary <- current[current$STATEORSUMM == "Summary",]
+
+# Write the first document to start the file
+K_number <- current$KNUMBER[1]
+
+# Note that for 2017, the mainurl is now different
+pdfmain <- "https://www.accessdata.fda.gov/cdrh_docs/pdf17/"
+
+pdfurl <- paste0(pdfmain,K_number,".pdf") 
+# Note that wrapping the pdf_url into paste and collapse ~ combines all the pages 
+# of the pdf text into a single character string object:
+txt <- paste(pdf_text(pdfurl), sep = " ", collapse = "~")
+
+txt <- tolower(gsub("[^A-Za-z0-9 ]","",txt))
+
+# Remove the extra white space
+txt <- gsub("\\s+", " ", str_trim(txt))
+
+count <-str_count(txt,tolower(K_number))
+
+txt_frame <- data.frame(KNUMBER = K_number, txt = txt, 
+                        Kcount = count, stringsAsFactors = F)
+
+write.table(txt_frame, "Ksummary_text.csv", sep = ",", col.names = T, row.names = F)
+
+# Enter main scraping loop in which we will scrape other documents
+for (i in 2:nrow(current_summary) ){
+        
+K_number <- current$KNUMBER[i]        
+year <- current_summary$YEAR[i]        
+ 
+if(year > 2000){
+       yindx <- substr(as.character(year),3,4)         
+       pdfurl <- paste0("https://www.accessdata.fda.gov/cdrh_docs/pdf",
+                        yindx,"/",K_number,".pdf")
+       is_this_error <- try(txt <- paste(pdf_text(pdfurl), sep = " ", collapse = "~"))
+       close(pdfurl)
+       # Retain alphanumeric letters
+       txt <- tolower(gsub("[^A-Za-z0-9 ]","",is_this_error))
+       # Remove the extra white space
+       txt <- gsub("\\s+", " ", str_trim(txt))
+       count <-str_count(txt,tolower(K_number))
+       txt_frame <- data.frame(KNUMBER = K_number, txt = txt, 
+                                Kcount = count, stringsAsFactors = F)
+                       
+}               
+        
+
+# Continue writing into the same file by appending into it 
+write.table(txt_frame, "Ksummary_text.csv", sep = ",", append = T, 
+             col.names = F, row.names = F)    
+
+cat("Completed parsing document:", K_number, "\n")
+cat(strrep("*", 40),"\n")
+
+}
 
 ```
 
