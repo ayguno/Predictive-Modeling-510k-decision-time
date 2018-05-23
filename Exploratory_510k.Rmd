@@ -887,3 +887,145 @@ cat(strrep("*", 40),"\n")
 
 ```
 
+# Join text features to remaining features to write the final data set
+
+- We will check for and eliminate any residual empty or erronous txt entries in Ksummary.
+
+In chunks of 1000 rows:
+
+- We will merge **processing** and **Ksummary** txt column by KNUMBER.
+- Fill NAs resulting from the merge using "".
+- Join DEVICENAME, binarized_features and txt into a single TEXT_FEATURES column.
+- Further clean the TEXT_FEATURES: 
+        - lowercase
+        - remove extrawhitespace
+        - retain only alphanumeric characters
+        - try to remove extremely long words (any 'word' above 50 characters will be removed, since they are likely to be text recognition errors)
+
+```{r}
+# Load the data prepared
+processing <- readRDS("processing.rds")
+Ksummary <- read.csv("Ksummary_text.csv", header = T, stringsAsFactors = F)
+```
+
+Check for and eliminate any residual empty or erronous txt entries in Ksummary chunk
+
+```{r}
+nchars <- sapply(Ksummary$txt, nchar)
+summary(nchars)
+```
+
+```{r}
+hist(log10(nchars),breaks = 100,col = "navy")
+```
+
+Note that length of the text is usually above 8000 characters, there is a group smaller than 1000 characters we suspect these are erronous text:
+
+```{r}
+length(Ksummary$txt[nchars <= 10^3])
+```
+
+```{r}
+unique((Ksummary$txt[nchars <= 10^3]))
+```
+
+Majority of these entries are either empty string or a common error, we can eliminate them before further processing the dataset:
+
+```{r}
+Ksummary <- Ksummary[Ksummary$txt != "",]
+Ksummary <- Ksummary[Ksummary$txt != "error in popplerpdftextloadfilepdf opw upw pdf parsing failure",]
+```
+
+```{r}
+# Any other txt that starts with error?
+errorsany <- grepl(pattern = "^error",x = Ksummary$txt)
+sum(errorsany)
+```
+```{r}
+# Any other txt that includes error?
+errorsany <- grepl(pattern = "error",x = Ksummary$txt)
+sum(errorsany)
+```
+```{r}
+hist(log10(nchars[errorsany]),breaks = 10,col = "navy")
+
+```
+Looks like there might be another group:
+
+```{r}
+sum(nchars[errorsany] < 10^3)
+```
+
+```{r}
+# These don't look like error.
+# nchars[nchars[errorsany] < 1000]
+```
+
+
+```{r}
+# A function to streamline steps 2 - 4 above
+require(stringr)
+require(qdapRegex)
+require(dplyr)
+
+finaltidy <- function(processing, Ksummary_chunk){
+Ksummary_chunk <- Ksummary_chunk[,-3] 
+# We will merge **processing** and **Ksummary** txt column by KNUMBER.
+temp <- merge(processing,Ksummary_chunk,by = "KNUMBER", all = F, sort = F)
+# Join DEVICENAME, binarized_features and txt into a single TEXT_FEATURES column.
+for(i in 1:nrow(temp)){
+        x <- temp[i,]
+        temp$TEXT_FEATURES[i] <-paste(x$DEVICENAME, x$binarized_features,x$txt,
+                            sep = " ", collapse = "~")
+         # Further clean the TEXT_FEATURES
+        # retain only alphanumeric characters
+        temp$TEXT_FEATURES[i] <- gsub("[^A-Za-z0-9 ]","",temp$TEXT_FEATURES[i])
+        # remove extra whitespace
+        temp$TEXT_FEATURES[i] <- gsub("\\s+", " ", str_trim(temp$TEXT_FEATURES[i]))
+        # Lowercase
+        temp$TEXT_FEATURES[i] <- tolower(temp$TEXT_FEATURES[i])
+        # remove extremely long words (any 'word' above 25 characters will be removed, since they are likely to be text recognition errors)
+        temp$TEXT_FEATURES[i] <- rm_nchar_words(temp$TEXT_FEATURES[i],n = "25,")
+       
+}  
+
+# remove processed text features
+temp <- dplyr::select(temp,-DEVICENAME,-binarized_features, -txt)
+# return temp
+return(temp)       
+}
+
+```
+
+Next, streamline chunk processing using finaltidy function:
+
+```{r}
+# Load the data prepared
+processing <- readRDS("processing.rds")
+Ksummary <- read.csv("Ksummary_text.csv", header = T, stringsAsFactors = F)
+
+# Exclude obvious errors
+Ksummary <- Ksummary[Ksummary$txt != "",]
+Ksummary <- Ksummary[Ksummary$txt != "error in popplerpdftextloadfilepdf opw upw pdf parsing failure",]
+
+
+start = 1
+end = 1000
+# First chunk to initiate the final file
+Ksummary_chunk <- Ksummary[start:end,]
+Ksummary_chunk <- finaltidy(processing,Ksummary_chunk)
+write.table(Ksummary_chunk, "processed510kdata.csv", col.names = T, row.names = F, sep = ",")
+cat("Completed processing chunk:", 1, "\n")
+cat(strrep("*",50), "\n")
+# Main loop to process the rest of the data
+for(chunks in 2:17){
+        start = start + 1000
+        end = end +1000
+        Ksummary_chunk <- Ksummary[start:end,]
+        Ksummary_chunk <- finaltidy(processing,Ksummary_chunk)
+        write.table(Ksummary_chunk, "processed510kdata.csv", col.names = F, row.names = F, sep = ",", append = T)
+        cat("Completed processing chunk:", chunks, "\n")
+        cat(strrep("*",50),"\n")
+}
+```
+
