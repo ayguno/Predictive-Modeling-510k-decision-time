@@ -1018,7 +1018,7 @@ write.table(Ksummary_chunk, "processed510kdata.csv", col.names = T, row.names = 
 cat("Completed processing chunk:", 1, "\n")
 cat(strrep("*",50), "\n")
 # Main loop to process the rest of the data
-for(chunks in 2:17){
+for(chunks in 2:19){
         start = start + 1000
         end = end +1000
         Ksummary_chunk <- Ksummary[start:end,]
@@ -1029,3 +1029,4 @@ for(chunks in 2:17){
 }
 ```
 
+After this step, the data is ready for predictive modeling. We will use Python for this purpose and switch to a Jupyter notebook.
