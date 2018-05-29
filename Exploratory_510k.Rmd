@@ -25,7 +25,7 @@ knitr::opts_chunk$set(results = "markup", fig.align = "center",
 # Download the data from:  #https://www.fda.gov/MedicalDevices/ProductsandMedicalProcedures/DeviceApprovalsandClearances/#510kClearances/ucm089428.htm
 wdir <- getwd()
 
-# Data from 96
+# Data from year 96
 current_96 <- "http://www.accessdata.fda.gov/premarket/ftparea/pmn96cur.zip"
 download.file(url = current_96,destfile = paste0(wdir,"/pmn96cur.zip"))
 unzip("pmn96cur.zip")
