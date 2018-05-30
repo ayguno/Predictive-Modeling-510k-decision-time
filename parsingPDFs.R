@@ -1,6 +1,12 @@
 ##########################################
 # Parsing PDF files 
 ##########################################
+
+# Note that the error message that will be catched in mac and windows are different
+# For windows: "error in openconnectioncon rb cannot open the connection"
+# For mac:     "error in openconnectioncon rb cannot open connection"
+
+
 require(hunspell)
 require(pdftools)
 require(stringr)
@@ -67,7 +73,7 @@ if (count > 0){
                                 Kcount = count, stringsAsFactors = F)
        
 # if file is not accessible try alternative an source
-} else if ((txt == "error in openconnectioncon rb cannot open connection") & count == 0){
+} else if ((txt == "error in openconnectioncon rb cannot open the connection") & count == 0){
        
         pdfurl <- paste0("https://www.accessdata.fda.gov/cdrh_docs/reviews/",K_number,".pdf")
         is_this_error <- try(txt <- paste(pdf_text(pdfurl), sep = " ", collapse = "~"))
@@ -83,7 +89,7 @@ if (count > 0){
                                 Kcount = count, stringsAsFactors = F)
         cat("Alternative source parsed document:", K_number, "\n")
         # if this is again connection problem, this means the file does not exist 
-        }else if ((txt == "error in openconnectioncon rb cannot open connection") & count == 0){
+        }else if ((txt == "error in openconnectioncon rb cannot open the connection") & count == 0){
         txt_frame = NULL     
         }else{
                 # At this point the file may exist in the alternative url, but it might be image
@@ -144,7 +150,7 @@ if (count > 0){
 # First look at if alternative link has text that can contain K_number, if yes store it        
 # If the above fails try to recover data using text recognition. 
 # If all fails, check for another common adobe error, if txt is not that error, store it otherwise skip       
-} else if ((txt != "error in openconnectioncon rb cannot open connection") & count == 0){
+} else if ((txt != "error in openconnectioncon rb cannot open the connection") & count == 0){
         
         # First look at if alternative link has text that can contain K_number, if yes store it
         pdfurl <- paste0("https://www.accessdata.fda.gov/cdrh_docs/reviews/",K_number,".pdf")
@@ -161,7 +167,7 @@ if (count > 0){
                                 Kcount = count, stringsAsFactors = F)
         cat("Alternative source parsed document:", K_number, "\n")
         # if this is again connection problem, this means the file does not exist 
-        }else if ((txt1 == "error in openconnectioncon rb cannot open connection") & count == 0){
+        }else if ((txt1 == "error in openconnectioncon rb cannot open the connection") & count == 0){
                 txt_frame = NULL     
         }else{
                 # At this point the file may exist in the alternative url, but it might be image
