@@ -1005,6 +1005,10 @@ return(temp)
 Next, streamline chunk processing using finaltidy function:
 
 ```{r}
+############################################
+# Final processing using finaltidy()
+############################################
+
 # Load the data prepared
 processing <- readRDS("processing.rds")
 Ksummary <- read.csv("Ksummary_text.csv", header = T, stringsAsFactors = F)
@@ -1022,7 +1026,8 @@ Ksummary_chunk <- finaltidy(processing,Ksummary_chunk)
 write.table(Ksummary_chunk, "processed510kdata.csv", col.names = T, row.names = F, sep = ",")
 cat("Completed processing chunk:", 1, "\n")
 cat(strrep("*",50), "\n")
-# Main loop to process the rest of the data
+
+# Main loop to process the remaining of the data
 for(chunks in 2:42){
         start = start + 1000
         end = end +1000
