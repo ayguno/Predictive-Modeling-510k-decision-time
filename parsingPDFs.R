@@ -42,7 +42,7 @@ write.table(txt_frame, "Ksummary_text.csv", col.names = T, row.names = F, sep = 
 successfull = 1
 
 # Enter main scraping loop in which we will scrape other documents
-for (i in 2:nrow(current_summary)){
+for (i in 42285:nrow(current_summary)){
         
 K_number <- current_summary$KNUMBER[i]        
 yindx <- substr(as.character(K_number),2,3)
