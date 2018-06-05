@@ -1039,4 +1039,4 @@ for(chunks in 2:42){
 }
 ```
 
-After this step, the data is almost ready for predictive modeling. We will use Python for this purpose and switch to a Jupyter notebook.
+After this step, the data is almost ready for predictive modeling. We will use Python for this purpose and switch to a Jupyter notebook at this stage.
