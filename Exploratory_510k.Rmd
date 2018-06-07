@@ -1004,7 +1004,7 @@ return(temp)
 
 Next, streamline chunk processing using finaltidy function:
 
-```{r}
+```{r, eval=FALSE}
 ############################################
 # Final processing using finaltidy()
 ############################################
@@ -1042,6 +1042,18 @@ for(chunks in 2:50){
 
 ```{r}
 # Check for redundancies in the data set perform a final clean
+processed510kdata <- read.csv("processed510kdata.csv", stringsAsFactors = FALSE,header = TRUE)
+sapply(apply(processed510kdata,2,unique),length)
+```
+
+```{r,eval = FALSE}
+Kduplicated <- duplicated(processed510kdata$KNUMBER)
+# Keep the unique entries 
+processed510kdata <- processed510kdata[which(!Kduplicated),]
+nrow(processed510kdata)
+sapply(apply(processed510kdata,2,unique),length)
+# Save the unique data set
+write.table(processed510kdata, "processed510kdata.csv", row.names = F, sep = ",")
 ```
 
 After this step, the data is almost ready for predictive modeling. We will use Python for this purpose and switch to a Jupyter notebook at this stage.
