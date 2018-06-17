@@ -1,0 +1,61 @@
+---
+title: "Analysis of Model Validation Results"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This part of the analysis follows the predictive modeling (implemented using Python in jupyter notebooks). Based on the performance in the validation set, we selected Light Gradient Boosting (lgbm) as the best performing model after tuning its performance. Here our goal is to derive conclusions from our model to better understand its capacity and limitations.
+
+# Loading validations results
+
+Validation results were saved as a flat file where the validation data set was linked to model predictions as well as the true decision time and absolute error:
+
+```{r, eval=FALSE}
+validation_results <- read.csv("validation_results.csv", stringsAsFactors = F, header = T)
+```
+
+We also get our master data file:
+
+```{r,eval= FALSE}
+# Load previously save intermediary data file
+current <- readRDS("current.rds")
+```
+
+
+We will append validation results with additional information from the master data:
+
+```{r,eval=FALSE}
+validation_results_extended <- merge(x = validation_results,y = current, by = c('KNUMBER','APPLICANT_PRIOR_CLEARANCE_TO_DATE','DEVICENAME_PRIOR_CLEARANCE_TO_DATE','DECISIONTIME'), all.x = TRUE, all.y = FALSE)
+```
+
+
+# Converting Medical Speciality codes to identifiers
+
+At this point let's also convert speciality codes to more informative forms. These codes are found at:
+
+https://www.fda.gov/medicaldevices/deviceregulationandguidance/overview/classifyyourdevice/ucm051668.htm#medicalspecialty
+
+Downloaded as a flat file (MedSpeciality.csv) and used:
+
+```{r}
+
+```
+
+
+
+This extended results table serves as the main data set for our validation results analysis.
+
+```{r,eval= FALSE}
+saveRDS(validation_results_extended,"validation_results_extended.rds")
+```
+
+
+
+
+# Overall Model Performance
+
