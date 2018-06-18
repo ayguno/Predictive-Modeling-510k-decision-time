@@ -4,7 +4,8 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(results = "markup", fig.align = "center",
+                      fig.height= 8, fig.width= 8,message=FALSE,warning=FALSE)
 ```
 
 # Introduction
@@ -43,9 +44,23 @@ https://www.fda.gov/medicaldevices/deviceregulationandguidance/overview/classify
 Downloaded as a flat file (MedSpeciality.csv) and used:
 
 ```{r}
-
+medspeciality <- read.csv("MedSpeciality.csv", stringsAsFactors = F, header = T)
+names(medspeciality)[1] <- "Speciality"
+medspeciality$Speciality <- gsub(pattern = " |&|/|,","_",medspeciality$Speciality)
+medspeciality$Speciality <- gsub(pattern = "__|___","_",medspeciality$Speciality)
 ```
 
+```{r}
+validation_results_extended$REVIEWADVISECOMM <- as.character(validation_results_extended$REVIEWADVISECOMM)
+validation_results_extended$CLASSADVISECOMM <- as.character(validation_results_extended$CLASSADVISECOMM)
+for(i in seq_along(medspeciality$Medical.Specialty.Code)){
+    scode <- medspeciality$Medical.Specialty.Code[i]
+    selector_REVIEWADVISECOMM <- which(validation_results_extended$REVIEWADVISECOMM == scode)   
+    selector_CLASSADVISECOMM <- which(validation_results_extended$CLASSADVISECOMM == scode)
+    validation_results_extended$REVIEWADVISECOMM[selector_REVIEWADVISECOMM] <- medspeciality$Speciality[i]
+    validation_results_extended$CLASSADVISECOMM[selector_CLASSADVISECOMM] <- medspeciality$Speciality[i]
+}
+```
 
 
 This extended results table serves as the main data set for our validation results analysis.
@@ -56,6 +71,77 @@ saveRDS(validation_results_extended,"validation_results_extended.rds")
 
 
 
-
 # Overall Model Performance
+
+
+```{r}
+validation_results_extended <- readRDS("validation_results_extended.rds")
+```
+
+
+```{r, fig.height= 5, fig.width= 5, fig.align= "center"}
+mae = round(median(validation_results_extended$Absolute_Error),4)
+library(ggplot2)
+ggplot(data = validation_results_extended, aes(x = preds_lgbm, y = DECISIONTIME))+
+    geom_point(alpha = 0.05, color = "navy", size = 1)+
+    geom_abline(x = c(0,0), y = c(1000,1000), linetype = "dashed", size = 1, color = "magenta")+
+    geom_text(x = 500, y = 900, label = paste0("MAE: ", mae), family = "arial", size = 6, color = "navy")+
+    ylim(0,1000)+
+    xlim(0,1000)+
+    xlab(label = "Model predictions (calendar days)")+
+    ylab(label = "Decision time (calendar days)")+
+    ggtitle("Validated model performance")+
+    theme(
+        axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+    )
+
+    
+```
+
+# Error distribution
+
+```{r,fig.height= 5, fig.width= 5, fig.align= "center"}
+library(ggplot2)
+quant <- round(quantile(validation_results_extended$Absolute_Error),2)
+ggplot(validation_results_extended,aes(x = Absolute_Error))+
+    geom_histogram(bins =  1000, color= "navy", size = 0.05)+
+    xlab(label = "Absolute Error (calendar days)")+
+    ylab(label = "Count")+
+    ggtitle("Distribution of Validation Errors")+
+    geom_vline(xintercept = quant[3], size = 0.75, linetype = "dashed", color = "magenta")+
+    geom_text(x = 180, y = 500, label = paste0("MAE: ", mae), family = "arial", size = 6, color = "navy")+
+    xlim(-100,800)+
+    ylim(0,500)+
+    theme(
+        axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA)
+        #panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+    )
+```
+```{r,fig.height= 5, fig.width= 5, fig.align= "center"}
+library(ggplot2)
+quant <- round(quantile(validation_results_extended$Absolute_Error),2)
+ggplot(validation_results_extended,aes(y = Absolute_Error, x= DECISIONTIME))+
+    geom_point(alpha = 0.015, color = "navy")+
+    ylab(label = "Absolute Error (calendar days)")+
+    xlab(label = "Decision time (calendar days)")+
+    geom_hline(yintercept = quant[3], color = "magenta", linetype = "dashed", size = 1.2)+
+    geom_text(y = 70, x = 750, label = paste0("MAE: ", quant[3]), family = "arial", size = 6, color = "navy")+
+    theme(
+        axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+    )
+```
 
