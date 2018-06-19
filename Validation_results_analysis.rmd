@@ -133,8 +133,10 @@ ggplot(validation_results_extended,aes(y = Absolute_Error, x= DECISIONTIME))+
     geom_point(alpha = 0.015, color = "navy")+
     ylab(label = "Absolute Error (calendar days)")+
     xlab(label = "Decision time (calendar days)")+
+    geom_vline(xintercept = 150, color = "red", linetype = "dashed", size = 1.0)+
+    geom_text(y = 600, x = 300, label = "150 Days",  size = 5, color = "red")+
     geom_hline(yintercept = quant[3], color = "magenta", linetype = "dashed", size = 1.2)+
-    geom_text(y = 70, x = 750, label = paste0("MAE: ", quant[3]), family = "arial", size = 6, color = "navy")+
+    geom_text(y = 70, x = 750, label = paste0("MAE: ", quant[3]),  size = 6, color = "navy")+
     theme(
         axis.text = element_text(size = 12, face = "bold", colour = "navy"),
         axis.title = element_text(size = 15, face = "bold", colour = "navy"),
@@ -143,5 +145,121 @@ ggplot(validation_results_extended,aes(y = Absolute_Error, x= DECISIONTIME))+
         panel.border = element_rect(color = "navy", fill = NA),
         panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
     )
+```
+
+Error distribution is generally uniform until 150 decision days. Submissions that are taking longer than 150 days are associated with higher prediction errors, suggesting that there are other variables that model could not explain.
+
+
+# Analysis of model performance by medical specialities
+
+```{r, fig.width=10}
+library(dplyr)
+rev_spec_sum <- validation_results_extended %>% group_by(REVIEWADVISECOMM) %>% summarise(Median_prediction_error = median(Absolute_Error), Median_decision_time = median(DECISIONTIME),Stdev_decision_time = sd(DECISIONTIME), Number_of_submissions = n())
+rev_spec_sum$REVIEWADVISECOMM <- gsub("__|_"," ",rev_spec_sum$REVIEWADVISECOMM)
+library(ggplot2)
+fac <- with(rev_spec_sum, reorder(REVIEWADVISECOMM, Median_prediction_error, order = TRUE))
+rev_spec_sum$REVIEWADVISECOMM <- factor(rev_spec_sum$REVIEWADVISECOMM, levels = levels(fac))
+library(reshape2)
+test <- melt(rev_spec_sum,id.vars = "REVIEWADVISECOMM")
+fac_levels <- levels(test$variable)
+test$variable <- factor(gsub("__|_"," ",test$variable), levels = gsub("__|_"," ",fac_levels))
+ggplot(test, aes(x= REVIEWADVISECOMM, y = value))+
+    geom_bar(stat = "identity", fill = "navy")+
+    facet_grid(. ~ variable,scales = "free_x")+
+    xlab("Review Advisery Medical Speciality\n")+
+    ylab("")+
+    theme(
+        axis.text = element_text(size = 10, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major.x = element_line(size = 0.05, colour = "navy", linetype = "dotted"),
+        strip.background = element_rect(fill = "purple4"),
+        strip.text = element_text(color = "white", size = 12)
+    )+
+    coord_flip()
+  
+```
+
+# Analysis of model performance by product codes
+
+```{r, fig.width=10}
+library(dplyr)
+prod_code_sum <- validation_results_extended %>% group_by(PRODUCTCODE) %>% summarise(Median_prediction_error = median(Absolute_Error), Median_decision_time = median(DECISIONTIME),Stdev_decision_time = sd(DECISIONTIME), Number_of_submissions = n())
+
+# Filter at least 10 submissions or more
+prod_code_sum <- filter(prod_code_sum, Number_of_submissions >= 10)
+
+# 20 Product codes with the least median prediction error
+prod_code_sum <- prod_code_sum[order(prod_code_sum$Median_prediction_error),]
+prod_code_sum20 <- prod_code_sum[1:20,]
+
+# Attach product code descriptions
+# Dowloaded from: https://www.fda.gov/medicaldevices/deviceregulationandguidance/overview/classifyyourdevice/ucm051668.htm
+
+pcodes <- read.delim("foiclass.txt", sep = "|", header = T, stringsAsFactors = F)
+select_pcodes <-  pcodes$PRODUCTCODE %in% prod_code_sum20$PRODUCTCODE 
+pcodes <- pcodes[select_pcodes,c("PRODUCTCODE","DEVICENAME")]
+#pcodes$DEVICENAME <- paste0("(",pcodes$DEVICENAME,")")
+
+prod_code_sum20 <- merge(prod_code_sum20,pcodes,by = "PRODUCTCODE", sort = FALSE)
+prod_code_sum20$PRODUCTCODE <- paste(prod_code_sum20$PRODUCTCODE,prod_code_sum20$DEVICENAME,sep = " \n")
+prod_code_sum20 <- dplyr::select(prod_code_sum20,-DEVICENAME)
+
+prod_code_sum20$PRODUCTCODE <- sapply(prod_code_sum20$PRODUCTCODE,function(x){return(substr(x,1,60))}) 
+
+library(ggplot2)
+fac <- with(prod_code_sum20, reorder(PRODUCTCODE, Median_prediction_error, order = TRUE))
+prod_code_sum20$PRODUCTCODE <- factor(prod_code_sum20$PRODUCTCODE, levels = levels(fac))
+library(reshape2)
+test <- melt(prod_code_sum20,id.vars = "PRODUCTCODE")
+fac_levels <- levels(test$variable)
+test$variable <- factor(gsub("__|_"," ",test$variable), levels = gsub("__|_"," ",fac_levels))
+
+ggplot(test, aes(x= PRODUCTCODE, y = value))+
+    geom_bar(stat = "identity", fill = "navy")+
+    facet_grid(. ~ variable,scales = "free_x")+
+    xlab("Product Code\n")+
+    ylab("")+
+    theme(
+        axis.text.x = element_text(size = 11, face = "bold", colour = "navy"),
+        axis.text.y = element_text(size = 8, face = "bold", colour = "navy", hjust = 0.5),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major.x = element_line(size = 0.05, colour = "navy", linetype = "dotted"),
+        strip.background = element_rect(fill = "purple4"),
+        strip.text = element_text(color = "white", size = 10)
+    )+
+    coord_flip()
+  
+```
+
+# Plotting data for a given product code
+
+It would be useful to add open names of product codes from the product code table into our extended validation results data:
+
+
+```{r,eval=FALSE}
+pcodes <- read.delim("foiclass.txt", sep = "|", header = T, stringsAsFactors = F)
+pcodes <- pcodes[c("PRODUCTCODE","DEVICENAME")]
+names(pcodes)[2] <- "PRODUCTCODENAME"
+validation_results_extended <- merge(validation_results_extended,pcodes, by = "PRODUCTCODE", sort = FALSE, all.x = T, all.y = F)
+saveRDS(validation_results_extended,"validation_results_extended.rds")
+```
+
+Use the updated table with product code name column added: 
+
+```{r}
+validation_results_extended <- readRDS("validation_results_extended.rds")
+```
+
+
+
+
+```{r}
+# A function to plot prediction results from a single product code. 
 ```
 
