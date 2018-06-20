@@ -260,6 +260,40 @@ validation_results_extended <- readRDS("validation_results_extended.rds")
 
 
 ```{r}
-# A function to plot prediction results from a single product code. 
+# Functions to plot prediction results from a single product code. 
+
+pcode <- "GZB"
+results <- "validation_results_extended"
+
+plot_productcode <- function(results,pcode){
+    require(dplyr)
+    require(ggplot2)
+    subdata <- dplyr::filter(results, PRODUCTCODE == pcode)
+    mae = round(median(subdata$Absolute_Error),2)
+    edge = max(c(max(subdata$DECISIONTIME),max(subdata$preds_lgbm)))
+    ggplot(data = subdata, aes(x = preds_lgbm, y = DECISIONTIME))+
+        geom_point(color = "navy", size = 4)+
+        geom_abline(x = c(0,0), y = c(1000,1000), linetype = "dashed", size = 1, color = "magenta")+
+        geom_text(x = 10, y = edge, label = paste0("MAE: ", mae), size = 5, color = "navy")+
+        ylim(0, edge + 10)+
+        xlim(0, edge + 10)+
+        xlab(label = "Model predictions (calendar days)")+
+        ylab(label = "Real Decision time (calendar days)")+
+        labs(title = "Validated model performance", 
+             subtitle = paste0("Product code: |",pcode,"| ",subdata$PRODUCTCODENAME[1]))+
+        theme(
+            axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+            axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+            plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+            plot.subtitle = element_text(size = 12, face = "bold", colour = "navy", hjust = 0.5),
+            panel.background = element_blank(),
+            panel.border = element_rect(color = "navy", fill = NA),
+            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+        )
+    
+}
+
+plot_productcode(validation_results_extended,pcode)
+
 ```
 
