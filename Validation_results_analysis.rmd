@@ -277,7 +277,7 @@ plot_productcode <- function(results,pcode){
         ylim(0, edge + 10)+
         xlim(0, edge + 10)+
         xlab(label = "Model predictions (calendar days)")+
-        ylab(label = "Real Decision time (calendar days)")+
+        ylab(label = "Real Decision time (calendar days)\n")+
         labs(title = "Validated model performance", 
              subtitle = paste0("Product code: |",pcode,"| ",subdata$PRODUCTCODENAME[1]))+
         theme(
@@ -285,9 +285,10 @@ plot_productcode <- function(results,pcode){
             axis.title = element_text(size = 15, face = "bold", colour = "navy"),
             plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
             plot.subtitle = element_text(size = 12, face = "bold", colour = "navy", hjust = 0.5),
-            panel.background = element_blank(),
+            panel.background = element_rect(fill = "slategray1"),
             panel.border = element_rect(color = "navy", fill = NA),
-            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted"),
+            panel.grid.minor = element_blank()
         )
     
 }
@@ -304,29 +305,34 @@ results <- "validation_results_extended"
 plot_timeseries_productcode <- function(results,pcode){
     require(dplyr)
     require(ggplot2)
+    require(reshape2)
     subdata <- dplyr::filter(results, PRODUCTCODE == pcode)
     subdata$DATERECEIVED <- as.POSIXct.Date(subdata$DATERECEIVED)
     mae = round(median(subdata$Absolute_Error),2)
     edge = max(c(max(subdata$DECISIONTIME),max(subdata$preds_lgbm)))
+    
     ggplot(data = subdata, aes(x = DATERECEIVED))+
-        geom_point(color = "navy", size = 4, aes(x = DATERECEIVED, y = DECISIONTIME) , alpha = 0.8)+
-        geom_point(color = "magenta", size = 4, aes(x = DATERECEIVED, y = preds_lgbm), alpha = 0.8)+
+        geom_segment(aes(x = DATERECEIVED, y = DECISIONTIME), 
+                     yend = subdata$preds_lgbm, xend = subdata$DATERECEIVED,
+                     linetype = "dotted", size = 1.0, color = "red",show.legend = T)+
+        geom_point(color = "magenta", size = 4, aes(x = DATERECEIVED, y = DECISIONTIME) , alpha = 0.85, show.legend = T)+
+        geom_point(color = "navy", size = 4, aes(x = DATERECEIVED, y = preds_lgbm), alpha = 0.85, show.legend = T)+
         
-        #geom_text(x = 10, y = edge, label = paste0("MAE: ", mae), size = 5, color = "navy")+
-        #ylim(0, edge + 10)+
-        #xlim(0, edge + 10)+
+
         xlab(label = "Submission Received Date")+
         ylab(label = "Decision time or Predictions \n(calendar days)")+
-        labs(title = "Validated model performance", 
+        labs(title = "Decision time and predictions across time", 
              subtitle = paste0("Product code: |",pcode,"| ",subdata$PRODUCTCODENAME[1]))+
         theme(
             axis.text = element_text(size = 12, face = "bold", colour = "navy"),
             axis.title = element_text(size = 15, face = "bold", colour = "navy"),
             plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
             plot.subtitle = element_text(size = 12, face = "bold", colour = "navy", hjust = 0.5),
-            panel.background = element_blank(),
+            panel.background = element_rect(fill = "slategray1"),
             panel.border = element_rect(color = "navy", fill = NA),
-            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank()
+           # panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
         )
     
 }
