@@ -53,8 +53,56 @@ current$DECISIONDATE <- mdy(current$DECISIONDATE)
 
 summary(current)
 
+
+```
+
+```{r}
 current$DECISIONTIME <- as.numeric(as.character(current$DECISIONDATE - current$DATERECEIVED))
 plot(current$DATERECEIVED,current$DECISIONTIME, pch = 19, cex = 0.05, col = "red" )
+```
+```{r}
+library(ggplot2); library(dplyr)
+subset <- dplyr::filter(current, DATERECEIVED > mdy('01-01-2000') & DATERECEIVED < mdy('01-01-2016'))
+ggplot(subset,aes(x = DATERECEIVED, y = DECISIONTIME))+
+    geom_point(alpha = 0.03, color = 'navy')+
+    xlab(label = "Submission date")+
+    ylab(label = "Decision time (calendar days)")+
+    labs(title = "510(k) Submissions received between 2000 - 2015")+
+    geom_text(y = 1800, x =  mdy('01-01-2003'), label = paste0(nrow(subset), " submissions"),  size = 5, color = "navy")+
+     theme(
+            axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+            axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+            plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+            plot.subtitle = element_text(size = 12, face = "bold", colour = "navy", hjust = 0.5),
+            panel.background = element_rect(fill = "white"),
+            panel.border = element_rect(color = "navy", fill = NA),
+            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted"),
+            panel.grid.minor = element_blank()
+        )
+
+```
+```{r}
+library(ggplot2); library(dplyr)
+subset <- dplyr::filter(current, DATERECEIVED > mdy('01-01-2000') & DATERECEIVED < mdy('01-01-2016'))
+ggplot(subset,aes(x = DECISIONTIME))+
+    geom_histogram(fill = 'navy', bins = 200)+
+    ylab(label = "Count")+
+    xlab(label = "Decision time (calendar days)")+
+    geom_text(x = 1000, y =  4000, label = paste0('Median: ', median(subset$DECISIONTIME),"\n",
+                                                  "Stdev: ", round(sd(subset$DECISIONTIME),2),"\n",
+                                                  "Max: ",round(max(subset$DECISIONTIME),2),"\n" ,
+                                                  "Min: ",round(min(subset$DECISIONTIME),2))
+                                                  ,size = 5, color = "navy")+
+     theme(
+            axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+            axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+            plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+            plot.subtitle = element_text(size = 12, face = "bold", colour = "navy", hjust = 0.5),
+            panel.background = element_rect(fill = "white"),
+            panel.border = element_rect(color = "navy", fill = NA),
+            panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted"),
+            panel.grid.minor = element_blank()
+        )
 ```
 
 ```{r}
@@ -374,6 +422,7 @@ processing <- dplyr::select(current, KNUMBER,DECISIONTIME,STATE,COUNTRY_CODE,
 # Save the current version of the processing 
 saveRDS(processing,"processing.rds")
 ```
+
 
 ```{r}
 ###################################################
