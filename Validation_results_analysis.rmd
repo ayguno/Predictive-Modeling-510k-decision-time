@@ -12,7 +12,128 @@ knitr::opts_chunk$set(results = "markup", fig.align = "center",
 
 This part of the analysis follows the predictive modeling (implemented using Python in jupyter notebooks). Based on the performance in the validation set, we selected Light Gradient Boosting (lgbm) as the best performing model after tuning its performance. Here our goal is to derive conclusions from our model to better understand its capacity and limitations.
 
-# Loading validations results
+# Representativeness of validation set
+
+We will compare and re-plot the Decisiontime in training and validation sets once again to visualize their high degree of similarity.
+
+```{r}
+y_train <- read.csv("y_train.csv", stringsAsFactors = FALSE)
+y_val <- read.csv("y_val.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+library(ggplot2)
+y_train$set <- "Training"
+y_val$set <- "Validation"
+combined_set <- rbind(y_train,y_val)
+
+ggplot(combined_set, aes(x = set,y = DECISIONTIME))+
+    geom_boxplot(fill = "navy", color = "magenta")+
+    xlab("Data set")+
+    ylab("Decision time")+
+    theme(
+        axis.text = element_text(size = 15, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major.x = element_blank(),
+        strip.background = element_rect(fill = "purple4"),
+        strip.text = element_text(color = "white", size = 12)
+    )+
+    coord_flip()
+```
+
+```{r}
+training = combined_set[combined_set$set == "Training",]
+ggplot(training, aes(x = DECISIONTIME))+
+    geom_histogram(fill = "navy", binwidth = 5) +
+    xlab("Decision time")+
+    ylab("Count")+
+    ggtitle("Training set")+
+    geom_vline(xintercept = median(training$DECISIONTIME), color = "magenta", linetype = "dashed", size = 1.2)+
+    geom_text(y = 1000, x = 500, label = paste0("Median: ", median(training$DECISIONTIME),"\n",
+                                                "n = ", nrow(training)),  
+              size = 6, color = "navy")+
+    ylim(0,2200)+
+    theme(
+        axis.text = element_text(size = 15, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major.x = element_blank(),
+        strip.background = element_rect(fill = "purple4"),
+        strip.text = element_text(color = "white", size = 12)
+    )
+   
+```
+
+
+```{r}
+validation = combined_set[combined_set$set == "Validation",]
+ggplot(validation, aes(x = DECISIONTIME))+
+    geom_histogram(fill = "navy", binwidth = 5) +
+    xlab("Decision time")+
+    ylab("Count")+
+    ggtitle("Validation set")+
+    geom_vline(xintercept = median(validation$DECISIONTIME), color = "magenta", linetype = "dashed", size = 1.2)+
+    geom_text(y = 1000, x = 500, label = paste0("Median: ", median(validation$DECISIONTIME),"\n",
+                                                "n = ", nrow(validation)),  
+              size = 6, color = "navy")+
+    ylim(0,2200)+
+    theme(
+        axis.text = element_text(size = 15, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major.x = element_blank(),
+        strip.background = element_rect(fill = "purple4"),
+        strip.text = element_text(color = "white", size = 12)
+    )
+   
+```
+
+# Comparing validation results from 4 models
+
+```{r}
+# Load predictions from 4 models we saved in Jupyter notebook
+target_predictions <- read.csv("target_predictions.csv", stringsAsFactors = F, header = TRUE)
+```
+
+```{r}
+names(target_predictions) <- gsub(pattern = "preds_ridge", replacement = "Ridge", x = names(target_predictions))
+names(target_predictions) <- gsub(pattern = "preds_svr", replacement = "Support_Vector_Machines", x = names(target_predictions))
+names(target_predictions) <- gsub(pattern = "preds_lgbm", replacement = "Gradient_Boosting", x = names(target_predictions))
+names(target_predictions) <- gsub(pattern = "preds_nnet", replacement = "Neural_Networks", x = names(target_predictions))
+```
+
+```{r, fig.width=4, fig.height=4}
+library(ggplot2)
+mae = round(median(abs(target_predictions$Neural_Networks- target_predictions$y_val)),2)
+ggplot()+
+    geom_point(aes(x = target_predictions$Neural_Networks, y = target_predictions$y_val), alpha = 0.05, color = "navy", size = 1)+
+    geom_abline(x = c(0,0), y = c(1000,1000), linetype = "dashed", size = 1, color = "magenta")+
+    geom_text(aes(x = 500, y = 900), label = paste0("MAE: ", mae), family = "arial", size = 6, color = "navy")+
+    ylim(0,1000)+
+    xlim(0,1000)+
+    xlab(label = "Model predictions (calendar days)")+
+    ylab(label = "Decision time (calendar days)")+
+    ggtitle("Deep Neural Networks")+
+    theme(
+        axis.text = element_text(size = 12, face = "bold", colour = "navy"),
+        axis.title = element_text(size = 15, face = "bold", colour = "navy"),
+        plot.title = element_text(size = 18, face = "bold", colour = "navy", hjust = 0.5),
+        panel.background = element_blank(),
+        panel.border = element_rect(color = "navy", fill = NA),
+        panel.grid.major = element_line(size = 0.05, colour = "grey", linetype = "dotted")
+    )
+
+```
+
+
+# Loading LGBM validations results
 
 Validation results were saved as a flat file where the validation data set was linked to model predictions as well as the true decision time and absolute error:
 
@@ -114,7 +235,7 @@ ggplot(validation_results_extended,aes(x = Absolute_Error))+
     ylab(label = "Count")+
     ggtitle("Distribution of Validation Errors")+
     geom_vline(xintercept = quant[3], size = 0.75, linetype = "dashed", color = "magenta")+
-    geom_text(x = 180, y = 500, label = paste0("MAE: ", mae), family = "arial", size = 6, color = "navy")+
+    geom_text(x = 180, y = 500, label = paste0("MAE: ", round(quant[3],2)), family = "arial", size = 6, color = "navy")+
     xlim(-100,800)+
     ylim(0,500)+
     theme(
@@ -262,7 +383,7 @@ validation_results_extended <- readRDS("validation_results_extended.rds")
 ```{r}
 # Function to scatterplot prediction results along with real decision time from a single product code. 
 pcode <- "GZB"
-results <- "validation_results_extended"
+results <- validation_results_extended
 
 plot_productcode <- function(results,pcode){
     require(dplyr)
