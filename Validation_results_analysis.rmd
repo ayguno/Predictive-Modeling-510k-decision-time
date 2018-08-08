@@ -102,6 +102,22 @@ ggplot(validation, aes(x = DECISIONTIME))+
 target_predictions <- read.csv("target_predictions.csv", stringsAsFactors = F, header = TRUE)
 ```
 
+## Comparison to naive model using median as the prediction
+
+This is to check whether the model is peforming better than the simple prediction of absolute median for the entire validation set:
+
+```{r}
+median(abs(90 - target_predictions$y_val))
+```
+Hence, a naive model that uses the median of the entire validation set as the prediction for each data point makes the error of 51 calendar days.
+
+```{r}
+median(abs(target_predictions$y_val-target_predictions$preds_lgbm))
+```
+
+The gradient boosting model performs much better (22.2 median calendar days closer to actual target) than the naive model.
+
+
 ```{r}
 names(target_predictions) <- gsub(pattern = "preds_ridge", replacement = "Ridge", x = names(target_predictions))
 names(target_predictions) <- gsub(pattern = "preds_svr", replacement = "Support_Vector_Machines", x = names(target_predictions))
